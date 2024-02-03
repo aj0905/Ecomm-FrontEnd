@@ -170,7 +170,7 @@
       >
         Sign up
       </button>
-      <button nz-button (click)="logout() && toggleMenu()" *ngIf="isLoggedIn">
+      <button nz-button routerLink="/" (click)="logout() && toggleMenu()" *ngIf="isLoggedIn">
         Sign out
       </button>
     </div>

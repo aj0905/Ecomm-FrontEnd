@@ -1,118 +1,106 @@
-const db = require("../database/db");
+const knex = require("../database/db");
 
 exports.createOrder = async (params) => {
-  const { userId, cart } = params;
+    const { userId, cart } = params;
 
-  if (!cart) throw { message: "cart was not provided", statusCode: 400 };
-  if (!userId) throw { message: "userId was not provided", statusCode: 400 };
+    if (!cart) throw { message: "cart was not provided", statusCode: 400 };
+    if (!userId) throw { message: "userId was not provided", statusCode: 400 };
 
-  return new Promise((resolve, reject) => {
-    db.query(
-      `INSERT INTO orders (user_id) VALUES (?)`,
-      [userId],
-      (err, result) => {
-        if (err) reject({ message: err, statusCode: 500 });
+    try {
+        const [newOrderId] = await knex("orders").insert({ user_id: userId });
 
-        if (result) {
-          let newOrderId = result.insertId;
-          cart.products.forEach(async (prod) => {
-            db.query(
-              `SELECT p.quantity FROM products p WHERE p.id = ?`,
-              [prod.id],
-              (err, result) => {
-                if (err) reject({ message: err, statusCode: 500 });
+        await Promise.all(
+            cart.products.map(async (prod) => {
+                const [product] = await knex("products")
+                    .select("quantity")
+                    .where({ id: prod.id });
 
-                let productQuantity = result[0].quantity; // db product
-
-                // deduct the quantity from products that were ordered in db
+                let productQuantity = product.quantity;
                 let updatedQuantity = productQuantity - prod.quantity;
-                if (updatedQuantity > 0) {
-                  productQuantity = updatedQuantity;
-                } else productQuantity = 0;
+                productQuantity = updatedQuantity > 0 ? updatedQuantity : 0;
 
-                db.query(
-                  `INSERT INTO orders_details (order_id, product_id, quantity) VALUES (?,?,?)`,
-                  [newOrderId, prod.id, prod.quantity],
-                  (err, result) => {
-                    if (err) reject({ message: err, statusCode: 500 });
+                await knex("orders_details").insert({
+                    order_id: newOrderId,
+                    product_id: prod.id,
+                    quantity: prod.quantity,
+                });
 
-                    db.query(
-                      `UPDATE products SET quantity = ${productQuantity} WHERE id = ${prod.id}`,
-                      (err, result) => {
-                        if (err) reject({ message: err, statusCode: 500 });
-                        console.log(result);
-                      }
-                    );
-                  }
-                );
-              }
-            );
-          });
+                await knex("products")
+                    .where({ id: prod.id })
+                    .update({ quantity: productQuantity });
+            })
+        );
 
-          resolve({
+        return {
             message: `Order was successfully placed with order id ${newOrderId}`,
             orderId: newOrderId,
             products: cart.products,
             statusCode: 201,
-          });
-        } else {
-          reject({
+        };
+    } catch (error) {
+        throw {
             message: "New order failed while adding order details",
             statusCode: 500,
-          });
-        }
-      }
-    );
-  });
+            data: error,
+        };
+    }
 };
 
 exports.getSingleOrder = async (params) => {
-  const { orderId, userId } = params;
+    const { orderId, userId } = params;
 
-  if (!orderId) throw { message: "orderId was not provided", statusCode: 400 };
-  if (!userId) throw { message: "userId was not provided", statusCode: 400 };
+    if (!orderId)
+        throw { message: "orderId was not provided", statusCode: 400 };
+    if (!userId) throw { message: "userId was not provided", statusCode: 400 };
 
-  return new Promise((resolve, reject) => {
-    db.query(
-      `SELECT * FROM orders INNER JOIN orders_details ON ( orders.id = orders_details.order_id ) WHERE orders.id = ? AND orders.user_id = ?`,
-      [orderId, userId],
-      (err, result) => {
-        if (err) reject({ message: err, statusCode: 500 });
+    try {
+        const result = await knex("orders")
+            .select("*")
+            .innerJoin(
+                "orders_details",
+                "orders.id",
+                "=",
+                "orders_details.order_id"
+            )
+            .where({ "orders.id": orderId, "orders.user_id": userId });
 
-        if (result.length === 0)
-          reject({ message: "order was not found", statusCode: 400 });
+        if (result.length === 0) {
+            throw { message: "order was not found", statusCode: 400 };
+        }
 
-        resolve({
-          statusCode: 200,
-          message: `Order was found`,
-          data: result,
-        });
-      }
-    );
-  });
+        return { statusCode: 200, message: `Order was found`, data: result };
+    } catch (error) {
+        throw { message: error, statusCode: 500 };
+    }
 };
 
 exports.getOrders = async (params) => {
-  const { userId } = params;
+    const { userId } = params;
 
-  if (!userId) throw { message: "userId was not provided", statusCode: 400 };
+    if (!userId) throw { message: "userId was not provided", statusCode: 400 };
 
-  return new Promise((resolve, reject) => {
-    db.query(
-      `SELECT * FROM orders INNER JOIN orders_details ON ( orders.id = orders_details.order_id ) WHERE user_id = ?`,
-      [userId],
-      (err, result) => {
-        if (err) reject({ message: err, statusCode: 500 });
+    try {
+        const result = await knex("orders")
+            .select("*")
+            .innerJoin(
+                "orders_details",
+                "orders.id",
+                "=",
+                "orders_details.order_id"
+            )
+            .where({ user_id: userId });
 
-        if (result.length === 0)
-          reject({ message: "No order were found", statusCode: 400 });
+        console.log(result);
+        if (result.length === 0) {
+            throw { message: "No orders were found", statusCode: 400 };
+        }
 
-        resolve({
-          statusCode: 200,
-          message: `${result.length} orders were found`,
-          data: result,
-        });
-      }
-    );
-  });
+        return {
+            statusCode: 200,
+            message: `${result.length} orders were found`,
+            data: result,
+        };
+    } catch (error) {
+        throw { message: error, statusCode: 500 };
+    }
 };

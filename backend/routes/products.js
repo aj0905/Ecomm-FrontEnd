@@ -21,6 +21,7 @@ router.get("/", async (req, res) => {
             )
             .join("categories as c", "c.id", "=", "p.cat_id")
             .limit(limit)
+            .orderBy("p.id")
             .offset(startValue);
 
         res.json(products);

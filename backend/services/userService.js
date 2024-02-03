@@ -12,17 +12,13 @@ exports.updateUser = async (params) => {
     try {
         const result = await knex("users")
             .select("*")
-            .where({ user_id: userId, password: hashedPassword });
+            .where({ id: userId, password: hashedPassword });
 
         if (result.length === 0) {
             throw {
                 message: "Wrong credentials, please try again",
                 statusCode: 400,
             };
-        }
-
-        if (email === result[0].email && fullName === result[0].fname) {
-            throw { message: "No new data has been provided", statusCode: 400 };
         }
 
         let updateFields = {};
@@ -35,7 +31,15 @@ exports.updateUser = async (params) => {
             updateFields.fname = fullName;
         }
 
-        await knex("users").where({ user_id: userId }).update(updateFields);
+        if (email !== result[0].email || fullName !== result[0].fname) {
+            await knex("users").where({ id: userId }).update(updateFields);
+        } else {
+            throw "No new data has been provided";
+            // {
+            //     message: "No new data has been provided",
+            //     statusCode: 400,
+            // };
+        }
 
         return {
             message: "User details have been successfully updated",
