@@ -1,45 +1,64 @@
 const express = require("express");
 const router = express.Router();
-const db = require("../database/db");
+const knex = require("../database/db");
 
 // GET ALL PRODUCTS
 router.get("/", async (req, res) => {
-  const { page = 1, limit = 10 } = req.query;
+    try {
+        const { page = 1, limit = 10 } = req.query;
 
-  let startValue;
-  let endValue;
+        const startValue = page > 0 ? (page - 1) * limit : 0;
 
-  if (page > 0) {
-    startValue = page * limit - limit; // 0,10,20,30
-    endValue = page * limit;
-  } else {
-    startValue = 0;
-    endValue = 10;
-  }
+        const products = await knex("products as p")
+            .select(
+                "p.id",
+                "p.title",
+                "p.image",
+                "p.price",
+                "p.short_desc",
+                "p.quantity",
+                "c.title as category"
+            )
+            .join("categories as c", "c.id", "=", "p.cat_id")
+            .limit(limit)
+            .offset(startValue);
 
-  db.query(
-    `SELECT p.id, p.title, p.image, p.price, p.short_desc, p.quantity,
-        c.title as category FROM products p JOIN categories c ON
-            c.id = p.cat_id LIMIT ${startValue}, ${limit}`,
-    (err, results) => {
-      if (err) console.log(err);
-      else res.json(results);
+        res.json(products);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Internal Server Error" });
     }
-  );
 });
 
 // GET SINGLE PRODUCT BY ID
 router.get("/:productId", async (req, res) => {
-  const { productId } = req.params;
-  db.query(
-    `SELECT p.id, p.title, p.image, p.images, p.description, p.price, p.quantity, p.short_desc,
-        c.title as category FROM products p JOIN categories c ON
-            c.id = p.cat_id WHERE p.id = ${productId}`,
-    (err, results) => {
-      if (err) console.log(err);
-      else res.json(results[0]);
+    try {
+        const { productId } = req.params;
+        const product = await knex("products as p")
+            .select(
+                "p.id",
+                "p.title",
+                "p.image",
+                "p.images",
+                "p.description",
+                "p.price",
+                "p.quantity",
+                "p.short_desc",
+                "c.title as category"
+            )
+            .join("categories as c", "c.id", "=", "p.cat_id")
+            .where("p.id", productId)
+            .first();
+
+        if (!product) {
+            res.status(404).json({ message: "Product not found" });
+        } else {
+            res.json(product);
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Internal Server Error" });
     }
-  );
 });
 
 module.exports = router;

@@ -1,14 +1,17 @@
 const express = require("express");
 const router = express.Router();
-const db = require("../database/db");
+const knex = require("../database/db");
 const userController = require("../controllers/userController");
 
 // Get all users
-router.get("/", (req, res) => {
-  db.query("SELECT * FROM users", (err, results) => {
-    if (err) console.log(err);
-    else res.json(results);
-  });
+router.get("/", async (req, res) => {
+    try {
+        const users = await knex.select("*").from("users");
+        res.json(users);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
 });
 
 router.put("/:userId", userController.update_user);
