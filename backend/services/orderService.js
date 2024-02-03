@@ -88,7 +88,8 @@ exports.getOrders = async (params) => {
                 "=",
                 "orders_details.order_id"
             )
-            .where({ user_id: userId });
+            .where({ user_id: userId })
+            .orderBy("orders.id", "desc");
 
         console.log(result);
         if (result.length === 0) {
