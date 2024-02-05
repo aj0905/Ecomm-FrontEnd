@@ -17,8 +17,6 @@ export class AuthService {
   }
 
   getUser() {
-    console.log(this.userSubject);
-    console.log(this.userSubject.value);
     return this.userSubject.value;
   }
 
@@ -30,13 +28,13 @@ export class AuthService {
       })
       .pipe(
         map((res: any) => {
+          this._token.setToken(res.token);
+          this._token.setUser(res.data[0]);
           let user = {
             email: credentials.email,
             token: res.token,
+            fname: res.data[0].fname,
           };
-          this._token.setToken(res.token);
-          this._token.setUser(res.data[0]);
-          console.log(res);
           this.userSubject.next(user);
           return user;
         })
